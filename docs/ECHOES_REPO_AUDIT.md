@@ -22,13 +22,39 @@ make-or-break question from section 5 is answered, and the answer is the **worst
   setter (`SetSeed`), so a module can read the seed but cannot pin/reset it. (Players can type a
   seed at new-game time, but that's a manual UI action, not module logic.)
 - **There is no module-writable store that survives death.** `World` is a per-adventure content
-  container; `Conduct` is a per-run scorecard with `internal` setters; there is no bones/legacy
-  system; the only cross-adventure persistent object is `Profile`, which is engine-owned
-  *settings* (volume, zoom, custom heroes), not a soul/meta-progression store.
+  container; `Conduct` is a per-run scorecard with `internal` setters; the only cross-adventure
+  persistent object a *module* could read is `Profile`, which is engine-owned *settings*
+  (volume, zoom, custom heroes), not a soul/meta-progression store.
 
-**Therefore:** "die → same seed regenerates → soul knowledge / memory fragments / disciplines /
-titles persist and reload into the next run" **cannot be implemented by forking this content
-repo.** It would require *engine* changes — a Module lifecycle with death/start hooks, a
+### Correction: a bones/revenant persistence system DOES exist (but it's engine-internal)
+
+Pathos has a NetHack-style **bones** system that genuinely persists across deaths:
+
+- `Bone` = a saved snapshot of a level (`CharacterList` of the dead, `LevelMap`, stair squares),
+  written to a `.Bone` file (`FileSupport.BoneExtension`). The in-game manual (`Guides.cs`):
+  *"Upon your death there is a 50% chance of creating a revenant on the current level."*
+- A later adventure can load that file, **replace the matching level** with the bone level
+  (`Site.ReplaceLevel(SourceLevel, DestinationLevel, BoneLevel)`), and `WarpMaker.ExecuteRevenants`
+  animates the old corpse into a **cursed, hostile revenant** (`Engine.RevenantCharacter`,
+  gear set to worst `Sanctity`) carrying the dead character's belongings.
+
+This is exactly the "replay a seed, meet your past self as a cursed ghost" behaviour players see.
+**But every piece of it is `internal`**: `Bone(...)`, `Site.ReplaceLevel`, `WarpMaker` (internal
+class), `RevenantCharacter`, `SetRevenant`. The save-on-death / load-on-generation is orchestrated
+by the host assembly (`Pathos`/`PathosGame`), not exposed to `PathosOfficial`. So a **module
+cannot create, configure, target, seed-key, or read bones** — it can only build the static world.
+
+**What this means for Echoes:** the engine *already* delivers a partial, ambient version of the
+"echoes of past loops" fantasy **for free** — replay a seed and your previously-saved bones can
+resurface as cursed revenants on the familiar layout. It's the *bodies* that persist (as enemies),
+not your *knowledge* — roughly the inverse of the spec's "lose the body, keep the mind" — but it's
+strongly on-theme for "Echoes of the Soul." A module can be *designed around* this existing
+behaviour (theme, regions, lore/dialogue that acknowledges revenants) plus a documented
+same-seed play pattern, with **no engine changes**. It cannot *drive or guarantee* it.
+
+**Therefore:** the spec's *controllable* time-loop — "die → same seed auto-regenerates → soul
+knowledge / memory fragments / disciplines / titles persist and reload into the next run"
+**cannot be implemented by forking this content repo.** It would require *engine* changes — a Module lifecycle with death/start hooks, a
 persistent per-soul meta-store, and module-controllable seed pinning — and the engine is
 closed-source (we have only the compiled DLLs). Only upstream (`callanh`) can add those hooks.
 
