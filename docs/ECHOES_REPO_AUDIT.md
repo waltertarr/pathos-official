@@ -4,7 +4,42 @@ Audit of `callanh/pathos-official` to determine where Echoes hooks in, and — m
 importantly — **what is and isn't possible** given this repo's boundaries. Read this before
 writing any implementation code.
 
-Date: 2026-05-30 · Branch: `feature/echoes-of-the-soul`
+Date: 2026-05-30 (engine inspection resolved 2026-05-31) · Branch: `feature/echoes-of-the-soul`
+
+---
+
+## ⚠️ RESOLVED VERDICT (2026-05-31): the time-loop conceit is NOT buildable in this fork
+
+The engine DLLs are now installed and have been decompiled and inspected (ILSpy). The
+make-or-break question from section 5 is answered, and the answer is the **worst case**:
+
+- **`Module` has one hook only:** `public abstract void Execute(Generator)`, invoked once when
+  a new adventure is generated. There is **no** death, run-end, victory, turn, or save callback.
+- **The engine does not expose its internals to the content assembly.**
+  `PathosEngine` declares `InternalsVisibleTo` for `Pathos`, `PathosGame`, `PathosMaker`, etc.
+  — **but not `PathosOfficial`.** Modules can call only the engine's *public* API.
+- **The seed is engine-controlled.** `Adventure.Seed` has a public getter but an `internal`
+  setter (`SetSeed`), so a module can read the seed but cannot pin/reset it. (Players can type a
+  seed at new-game time, but that's a manual UI action, not module logic.)
+- **There is no module-writable store that survives death.** `World` is a per-adventure content
+  container; `Conduct` is a per-run scorecard with `internal` setters; there is no bones/legacy
+  system; the only cross-adventure persistent object is `Profile`, which is engine-owned
+  *settings* (volume, zoom, custom heroes), not a soul/meta-progression store.
+
+**Therefore:** "die → same seed regenerates → soul knowledge / memory fragments / disciplines /
+titles persist and reload into the next run" **cannot be implemented by forking this content
+repo.** It would require *engine* changes — a Module lifecycle with death/start hooks, a
+persistent per-soul meta-store, and module-controllable seed pinning — and the engine is
+closed-source (we have only the compiled DLLs). Only upstream (`callanh`) can add those hooks.
+
+**What remains fully buildable here (Tier A):** a new selectable `EchoesModule` — a themed,
+region-structured campaign (distinct Sites with their own monster/loot/atmosphere tables,
+regional bosses, settlements, dialogue, a classless-ish starting Hero, faction-flavoured
+content). That is a real, shareable Pathos variant; it just is not the soul/time-loop game.
+Players who want a "replay the same layout" feel can opt into a **seeded run** manually.
+
+The rest of this document is the original pre-inspection audit, retained for context. See
+section 5 and the Status box for how this verdict maps onto them.
 
 ---
 
@@ -248,5 +283,9 @@ commercialise in any form. `docs/ECHOES_OF_THE_SOUL.md` should credit
 - [x] License confirmed (CC BY-NC 4.0)
 - [x] Spec→Pathos concept mapping done
 - [x] Engine boundary identified; persistence flagged as make-or-break
-- [ ] **Engine DLL inspection** (blocked on Pathos install) — resolves Tier B feasibility
-- [ ] First clean build of untouched fork
+- [x] **Engine DLL inspection** — DONE (see RESOLVED VERDICT at top). Tier B (soul persistence,
+      death reset, memory fragments) is **not implementable in this fork** — engine-gated.
+- [x] First clean build of untouched fork — **succeeds** (.NET 10 + installed Pathos DLLs;
+      `dotnet build -c Debug`, 0 errors, PathosMaker runs the asset pipeline)
+- [ ] **Decision needed:** rescope Echoes to Tier A (themed region campaign) and/or propose
+      engine hooks to upstream for the soul-persistence layer
